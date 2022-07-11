@@ -300,11 +300,24 @@
 
 (define (primitive-implementation proc) (cadr proc))
 
+ (define (error-primitive)
+   (error "Metacircular Interpreter Aborted"))
+
 (define primitive-procedures
   (list (list 'car car)
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
+        (list '+ +)
+        (list '* *)
+        (list '- -)
+        (list '/ /)
+        (list '< <)
+        (list '<= <=)
+        (list '= =)
+        (list '>= >=)
+        (list '> >)
+        (list 'error error-primitive)
 ;;      more primitives
         ))
 
