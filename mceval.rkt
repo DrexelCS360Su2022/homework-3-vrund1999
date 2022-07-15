@@ -23,6 +23,11 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
+        ((or? exp) (eval-or exp env))
+        ((and? exp) (eval-and (rest exp) env))
+        ((let? exp) (eval-let exp env))
+        ((delay? exp) (eval-delay exp env))
+        ((force? exp) (eval-force exp env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
@@ -62,6 +67,51 @@
       (mceval (if-consequent exp) env)
       (mceval (if-alternative exp) env)))
 
+(define (eval-or exp env)
+  (if (null? (rest exp))
+      false
+      (if (true? (mceval (first (rest exp)) env))
+          true
+          (eval-or (rest exp) env))))
+
+(define (eval-and exp env)
+  (if (null? exp)
+      true
+      (if (null? (rest exp))
+          (mceval (first exp) env)
+          (if (true? (mceval (first exp) env))
+              (eval-and (rest exp) env)
+              false))))
+
+(define (eval-let exp env)
+  (eval-sequence (rest (rest exp)) (extend-environment
+   (extract-let-vars (first (rest exp)))
+   (list-of-values (extract-let-expr (first (rest exp))) env)
+   env)))
+
+(define (eval-delay exp env)
+   (mceval (list 'memo-proc (make-lambda '() (rest exp))) env))
+
+(define (eval-force exp env)
+  (mceval (rest exp) env))
+
+(define (extract-let-bindings exp)
+  (first(rest exp)))
+
+(define (extract-let-expr exp)
+  (if (null? exp)
+      '()
+      (cons (first (rest (first exp))) (extract-let-expr (rest exp)))))
+
+(define (extract-let-vars exp)
+  (if (null? exp)
+      '()
+      (cons (first (first exp)) (extract-let-vars (rest exp)))))
+
+(define (extract-let-body exp)
+  (rest (rest exp)))
+  
+
 (define (eval-sequence exps env)
   (cond ((last-exp? exps) (mceval (first-exp exps) env))
         (else (mceval (first-exp exps) env)
@@ -86,6 +136,7 @@
         ((string? exp)  true)
         ((char? exp)    true)
         ((boolean? exp) true)
+        ((null? exp) true)
         (else           false)))
 
 (define (quoted? exp)
@@ -132,6 +183,16 @@
 
 
 (define (if? exp) (tagged-list? exp 'if))
+
+(define (or? exp) (tagged-list? exp 'or))
+
+(define (and? exp) (tagged-list? exp 'and))
+
+(define (let? exp) (tagged-list? exp 'let))
+
+(define (delay? exp) (tagged-list? exp 'delay))
+
+(define (force? exp) (tagged-list? exp 'force))
 
 (define (if-predicate exp) (cadr exp))
 
@@ -293,6 +354,18 @@
                              the-empty-environment)))
     (define-variable! 'true true initial-env)
     (define-variable! 'false false initial-env)
+    (define-variable! 'null null initial-env)
+    (eval-definition '(define (not x)
+                        (if x false true)) initial-env)
+     (eval-definition '(define (memo-proc proc)
+                        (let ((already-run? false)
+                              (result null))
+                          (lambda ()
+                            (if (not already-run?)
+                                (begin (set! result (proc))
+                                       (set! already-run? true)
+                                       result)
+                                result)))) initial-env)
     initial-env))
 
 (define (primitive-procedure? proc)
